@@ -1,0 +1,88 @@
+{
+  "name": "blade-preview",
+  "displayName": "Blade Preview",
+  "description": "Preview Laravel Blade templates as fully rendered HTML designs",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.107.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "blade",
+    "laravel",
+    "php",
+    "preview",
+    "template"
+  ],
+  "activationEvents": [
+    "onLanguage:blade"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "blade-preview.openPreview",
+        "title": "Blade Preview: Open Preview",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "blade-preview.openPreviewToSide",
+        "title": "Blade Preview: Open Preview to the Side",
+        "icon": "$(open-preview)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "blade-preview.openPreviewToSide",
+          "when": "editorLangId == blade || resourceExtname == .blade.php",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "blade-preview.openPreview",
+          "when": "editorLangId == blade || resourceExtname == .blade.php",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "blade-preview.openPreview",
+          "when": "editorLangId == blade || resourceExtname == .blade.php"
+        },
+        {
+          "command": "blade-preview.openPreviewToSide",
+          "when": "editorLangId == blade || resourceExtname == .blade.php"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.107.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.48.1",
+    "eslint": "^9.39.1",
+    "typescript": "^5.9.3",
+    "ts-loader": "^9.5.4",
+    "webpack": "^5.103.0",
+    "webpack-cli": "^6.0.1",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
