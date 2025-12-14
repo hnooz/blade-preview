@@ -69,7 +69,8 @@ export class BladePreviewPanel {
                 enableScripts: true,
                 localResourceRoots: [
                     vscode.Uri.joinPath(extensionUri, 'media'),
-                    vscode.Uri.joinPath(extensionUri, 'out')
+                    vscode.Uri.joinPath(extensionUri, 'out'),
+                    ...(vscode.workspace.workspaceFolders || []).map(folder => folder.uri)
                 ],
                 retainContextWhenHidden: true
             }
@@ -101,39 +102,24 @@ export class BladePreviewPanel {
 
         const bladeContent = this._document.getText();
         const renderedHtml = this._renderBladeTemplate(bladeContent);
+        
+        // Get CSS and script URIs
+        const styleUri = this._getStyleUri(webview);
+        const externalStyles = this._extractExternalStyles(bladeContent);
+        const localStyles = this._extractLocalStyles(bladeContent, webview);
+        const externalScripts = this._extractExternalScripts(bladeContent);
+        const localScripts = this._extractLocalScripts(bladeContent, webview);
 
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline' https:; script-src ${webview.cspSource} 'unsafe-inline' https:; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource} https: data:;">
     <title>Blade Preview</title>
-    <style>
-        body {
-            padding: 0;
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        }
-        .preview-container {
-            width: 100%;
-            height: 100%;
-        }
-        .error-message {
-            padding: 20px;
-            background-color: #fee;
-            color: #c33;
-            border-left: 4px solid #c33;
-            margin: 20px;
-        }
-        .warning-banner {
-            background-color: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            margin: 0;
-            color: #856404;
-        }
-    </style>
+    ${externalStyles.map(url => `<link rel="stylesheet" href="${url}">`).join('\n    ')}
+    ${localStyles.map(url => `<link rel="stylesheet" href="${url}">`).join('\n    ')}
+    <link rel="stylesheet" href="${styleUri}">
 </head>
 <body>
     <div class="warning-banner">
@@ -142,6 +128,8 @@ export class BladePreviewPanel {
     <div class="preview-container">
         ${renderedHtml}
     </div>
+    ${externalScripts.map(url => `<script src="${url}"></script>`).join('\n    ')}
+    ${localScripts.map(url => `<script src="${url}"></script>`).join('\n    ')}
     <script>
         const vscode = acquireVsCodeApi();
         
@@ -158,6 +146,8 @@ export class BladePreviewPanel {
     }
 
     private _getWelcomeHtml(webview: vscode.Webview): string {
+        const welcomeStyleUri = this._getWelcomeStyleUri(webview);
+        
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -165,30 +155,12 @@ export class BladePreviewPanel {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline';">
     <title>Blade Preview</title>
-    <style>
-        body {
-            padding: 40px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-editor-background);
-        }
-        .welcome-container {
-            max-width: 600px;
-            margin: 0 auto;
-            text-align: center;
-        }
-        h1 {
-            color: var(--vscode-textLink-foreground);
-        }
-        p {
-            line-height: 1.6;
-            color: var(--vscode-descriptionForeground);
-        }
-    </style>
+    <link rel="stylesheet" href="${welcomeStyleUri}">
 </head>
 <body>
     <div class="welcome-container">
-        <h1>🔍 Blade Preview</h1>
+        <div class="icon">🔍</div>
+        <h1>Blade Preview</h1>
         <p>Open a Laravel Blade template (.blade.php) and use the command "Blade Preview: Open Preview" to see a rendered preview.</p>
         <p>The preview will update automatically as you edit the template.</p>
     </div>
@@ -256,14 +228,14 @@ export class BladePreviewPanel {
             // Handle Blade comments
             html = html.replace(/\{\{--.*?--\}\}/gs, '');
 
-            // Handle {{ }} - escaped output (show as text)
+            // Handle {{ }} - escaped output (show as text with styling)
             html = html.replace(/\{\{\s*(.+?)\s*\}\}/g, (match, content) => {
-                return `<span style="color: #888; font-style: italic;">[${content.trim()}]</span>`;
+                return `<span class="blade-variable">[${content.trim()}]</span>`;
             });
 
-            // Handle {!! !!} - unescaped output (show as text)
+            // Handle {!! !!} - unescaped output (show as text with styling)
             html = html.replace(/\{!!\s*(.+?)\s*!!\}/g, (match, content) => {
-                return `<span style="color: #888; font-weight: bold;">[RAW: ${content.trim()}]</span>`;
+                return `<span class="blade-raw">[RAW: ${content.trim()}]</span>`;
             });
 
             // Handle @php and @endphp
@@ -286,6 +258,220 @@ export class BladePreviewPanel {
                 ${error instanceof Error ? error.message : 'Unknown error'}
             </div>`;
         }
+    }
+
+    private _getStyleUri(webview: vscode.Webview): vscode.Uri {
+        const styleUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'preview.css')
+        );
+        return styleUri;
+    }
+
+    private _getWelcomeStyleUri(webview: vscode.Webview): vscode.Uri {
+        const styleUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'welcome.css')
+        );
+        return styleUri;
+    }
+
+    private _extractExternalStyles(bladeContent: string): string[] {
+        const styles: string[] = [];
+        
+        // Extract CDN links from <link> tags
+        const linkRegex = /<link[^>]*href=["'](https?:\/\/[^"']+\.css[^"']*)["'][^>]*>/gi;
+        let match;
+        while ((match = linkRegex.exec(bladeContent)) !== null) {
+            styles.push(match[1]);
+        }
+
+        // Common CDN patterns (Bootstrap, Tailwind, etc.)
+        const cdnPatterns = [
+            /https?:\/\/cdn\.jsdelivr\.net\/[^\s"'<>]+\.css/gi,
+            /https?:\/\/unpkg\.com\/[^\s"'<>]+\.css/gi,
+            /https?:\/\/cdnjs\.cloudflare\.com\/[^\s"'<>]+\.css/gi,
+            /https?:\/\/stackpath\.bootstrapcdn\.com\/[^\s"'<>]+\.css/gi,
+            /https?:\/\/fonts\.googleapis\.com\/css[^\s"'<>]*/gi
+        ];
+
+        cdnPatterns.forEach(pattern => {
+            let cdnMatch;
+            while ((cdnMatch = pattern.exec(bladeContent)) !== null) {
+                const url = cdnMatch[0];
+                if (!styles.includes(url)) {
+                    styles.push(url);
+                }
+            }
+        });
+
+        return styles;
+    }
+
+    private _extractExternalScripts(bladeContent: string): string[] {
+        const scripts: string[] = [];
+        
+        // Extract CDN scripts from <script> tags
+        const scriptRegex = /<script[^>]*src=["'](https?:\/\/[^"']+\.js[^"']*)["'][^>]*>/gi;
+        let match;
+        while ((match = scriptRegex.exec(bladeContent)) !== null) {
+            scripts.push(match[1]);
+        }
+
+        // Common CDN patterns
+        const cdnPatterns = [
+            /https?:\/\/cdn\.jsdelivr\.net\/[^\s"'<>]+\.js/gi,
+            /https?:\/\/unpkg\.com\/[^\s"'<>]+\.js/gi,
+            /https?:\/\/cdnjs\.cloudflare\.com\/[^\s"'<>]+\.js/gi
+        ];
+
+        cdnPatterns.forEach(pattern => {
+            let cdnMatch;
+            while ((cdnMatch = pattern.exec(bladeContent)) !== null) {
+                const url = cdnMatch[0];
+                if (!scripts.includes(url)) {
+                    scripts.push(url);
+                }
+            }
+        });
+
+        return scripts;
+    }
+
+    private _extractLocalStyles(bladeContent: string, webview: vscode.Webview): string[] {
+        const styles: string[] = [];
+        
+        if (!this._document) {
+            return styles;
+        }
+
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(this._document.uri);
+        if (!workspaceFolder) {
+            console.log('[Blade Preview] No workspace folder found');
+            return styles;
+        }
+
+        console.log('[Blade Preview] Searching for local CSS in:', workspaceFolder.uri.fsPath);
+
+        // Extract relative/absolute paths from <link> tags (non-http URLs)
+        const linkRegex = /<link[^>]*href=["'](?!https?:\/\/)([^"']+\.css)["'][^>]*>/gi;
+        let match;
+        
+        while ((match = linkRegex.exec(bladeContent)) !== null) {
+            const relativePath = match[1];
+            console.log('[Blade Preview] Found local CSS reference:', relativePath);
+            const resolvedUri = this._resolveLocalResource(relativePath, workspaceFolder, webview);
+            if (resolvedUri) {
+                console.log('[Blade Preview] Resolved to:', resolvedUri);
+                styles.push(resolvedUri);
+            } else {
+                console.log('[Blade Preview] Could not resolve:', relativePath);
+            }
+        }
+
+        // Also check for common Laravel asset patterns
+        const assetPatterns = [
+            /@vite\(['"]([^'"]+\.css)['"]\)/gi,
+            /asset\(['"]([^'"]+\.css)['"]\)/gi,
+            /{{ asset\(['"]([^'"]+\.css)['"]\) }}/gi,
+        ];
+
+        assetPatterns.forEach(pattern => {
+            let assetMatch;
+            while ((assetMatch = pattern.exec(bladeContent)) !== null) {
+                const assetPath = assetMatch[1];
+                const resolvedUri = this._resolveLocalResource(assetPath, workspaceFolder, webview);
+                if (resolvedUri) {
+                    styles.push(resolvedUri);
+                }
+            }
+        });
+
+        return styles;
+    }
+
+    private _extractLocalScripts(bladeContent: string, webview: vscode.Webview): string[] {
+        const scripts: string[] = [];
+        
+        if (!this._document) {
+            return scripts;
+        }
+
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(this._document.uri);
+        if (!workspaceFolder) {
+            return scripts;
+        }
+
+        // Extract relative/absolute paths from <script> tags
+        const scriptRegex = /<script[^>]*src=["'](?!https?:\/\/)([^"']+\.js)["'][^>]*>/gi;
+        let match;
+        
+        while ((match = scriptRegex.exec(bladeContent)) !== null) {
+            const relativePath = match[1];
+            const resolvedUri = this._resolveLocalResource(relativePath, workspaceFolder, webview);
+            if (resolvedUri) {
+                scripts.push(resolvedUri);
+            }
+        }
+
+        // Also check for Laravel asset patterns
+        const assetPatterns = [
+            /@vite\(['"]([^'"]+\.js)['"]\)/gi,
+            /asset\(['"]([^'"]+\.js)['"]\)/gi,
+            /{{ asset\(['"]([^'"]+\.js)['"]\) }}/gi,
+        ];
+
+        assetPatterns.forEach(pattern => {
+            let assetMatch;
+            while ((assetMatch = pattern.exec(bladeContent)) !== null) {
+                const assetPath = assetMatch[1];
+                const resolvedUri = this._resolveLocalResource(assetPath, workspaceFolder, webview);
+                if (resolvedUri) {
+                    scripts.push(resolvedUri);
+                }
+            }
+        });
+
+        return scripts;
+    }
+
+    private _resolveLocalResource(
+        resourcePath: string, 
+        workspaceFolder: vscode.WorkspaceFolder, 
+        webview: vscode.Webview
+    ): string | null {
+        // Remove leading slash or ./
+        let cleanPath = resourcePath.replace(/^\.?\//, '');
+
+        console.log('[Blade Preview] Resolving resource:', resourcePath, '-> cleaned:', cleanPath);
+
+        // Common Laravel public asset paths
+        const commonPaths = [
+            cleanPath,                                    // As-is
+            path.join('public', cleanPath),               // public/css/app.css
+            path.join('resources', cleanPath),            // resources/css/app.css
+            path.join('resources', 'css', cleanPath),     // resources/css/...
+            path.join('resources', 'js', cleanPath),      // resources/js/...
+            path.join('node_modules', cleanPath),         // node_modules/...
+            path.join('public', 'build', cleanPath),      // public/build/... (Vite)
+        ];
+
+        for (const testPath of commonPaths) {
+            try {
+                const fullPath = path.join(workspaceFolder.uri.fsPath, testPath);
+                console.log('[Blade Preview] Testing path:', fullPath);
+                if (fs.existsSync(fullPath)) {
+                    const fileUri = vscode.Uri.file(fullPath);
+                    const webviewUri = webview.asWebviewUri(fileUri).toString();
+                    console.log('[Blade Preview] ✓ Found file! Webview URI:', webviewUri);
+                    return webviewUri;
+                }
+            } catch (error) {
+                console.log('[Blade Preview] Error checking path:', testPath, error);
+                continue;
+            }
+        }
+
+        console.log('[Blade Preview] ✗ File not found in any common path');
+        return null;
     }
 
     public dispose() {
