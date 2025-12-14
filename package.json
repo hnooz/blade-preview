@@ -3,6 +3,11 @@
   "displayName": "Blade Preview",
   "description": "Preview Laravel Blade templates as fully rendered HTML designs",
   "version": "0.0.1",
+  "publisher": "MohamedIdris",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hnooz/blade-preview"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -69,7 +74,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.107.0",
+    "@types/vscode": "^1.85.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "typescript-eslint": "^8.48.1",
