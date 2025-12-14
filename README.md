@@ -5,6 +5,12 @@ A VS Code extension that provides live preview of Laravel Blade templates as ful
 ## Features
 
 - **Live Preview**: Preview your Blade templates in real-time as you edit
+- **Local CSS/JS Support**: Automatically detects and loads local CSS and JavaScript files from your Laravel project
+- **CDN Support**: Automatically loads CSS and JavaScript from CDN links (Bootstrap, Tailwind, Font Awesome, etc.)
+- **Laravel Asset Helpers**: Supports `asset()`, `@vite()` directives for loading local resources
+- **Multiple Path Resolution**: Searches common Laravel directories (public/, resources/, node_modules/)
+- **External Stylesheets**: Detects and loads external CSS files referenced in your Blade templates
+- **Modular Styling**: Uses separate CSS files for clean, maintainable preview styles
 - **Syntax Processing**: Handles common Blade directives including:
   - Control structures (`@if`, `@foreach`, `@while`, etc.)
   - Template inheritance (`@extends`, `@section`, `@yield`)
@@ -35,9 +41,44 @@ There are several ways to open the Blade preview:
 ### Preview Features
 
 - The preview updates automatically as you edit your Blade template
-- Blade variables are shown in a styled format: `[variable_name]`
-- Raw output is indicated: `[RAW: content]`
+- Blade variables are shown with styled badges: `[variable_name]`
+- Raw output is highlighted: `[RAW: content]`
 - Blade directives are converted to HTML comments for debugging
+- **Local CSS/JS files** from your Laravel project are automatically loaded
+- **CDN resources** (CSS/JS) from popular libraries are automatically loaded:
+  - Bootstrap
+  - Tailwind CSS
+  - Font Awesome
+  - jQuery
+  - And any other CDN-hosted resources
+
+### Local File Resolution
+
+The extension automatically searches for local CSS and JavaScript files in common Laravel directories:
+- `public/css/`, `public/js/`
+- `public/build/` (Vite builds)
+- `resources/css/`, `resources/js/`
+- `node_modules/`
+## Examples
+
+The extension includes example files:
+- `example.blade.php` - Basic Blade template
+- `example-bootstrap.blade.php` - Bootstrap 5 template with CDN resources
+- `example-local-css.blade.php` - Template using local CSS files from `public/css/app.css`
+
+### Supported CDN Providers
+
+- jsDelivr (`cdn.jsdelivr.net`)
+- unpkg (`unpkg.com`)
+- cdnjs (`cdnjs.cloudflare.com`)
+- StackPath (`stackpath.bootstrapcdn.com`)
+- Google Fonts (`fonts.googleapis.com`)
+
+## Examples
+
+The extension includes example files:
+- `example.blade.php` - Basic Blade template
+- `example-bootstrap.blade.php` - Bootstrap 5 template with CDN resources
 
 ## Important Notes
 

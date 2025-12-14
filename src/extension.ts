@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import { BladePreviewPanel } from './bladePreviewPanel';
 
 export function activate(context: vscode.ExtensionContext) {
-	console.log('Blade Preview extension is now active!');
+	console.log('[Blade Preview] Extension is now active!');
+	console.log('[Blade Preview] Extension path:', context.extensionUri.fsPath);
 
 	// Register command to open preview
 	const openPreviewCommand = vscode.commands.registerCommand('blade-preview.openPreview', () => {
