@@ -4,7 +4,7 @@
   "description": "Preview Laravel Blade templates as fully rendered HTML designs",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.107.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "Programming Languages",
@@ -17,9 +17,7 @@
     "preview",
     "template"
   ],
-  "activationEvents": [
-    "onLanguage:blade"
-  ],
+  "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -51,12 +49,10 @@
       ],
       "commandPalette": [
         {
-          "command": "blade-preview.openPreview",
-          "when": "editorLangId == blade || resourceExtname == .blade.php"
+          "command": "blade-preview.openPreview"
         },
         {
-          "command": "blade-preview.openPreviewToSide",
-          "when": "editorLangId == blade || resourceExtname == .blade.php"
+          "command": "blade-preview.openPreviewToSide"
         }
       ]
     }

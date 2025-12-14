@@ -41,8 +41,8 @@
 
         @foreach($items as $item)
             <div class="card">
-                <h3>{{ $item['name'] }}</h3>
-                <p>{{ $item['description'] }}</p>
+                <h3>اثث q</h3>
+                <p>{{ ['description'] }}</p>
             </div>
         @endforeach
 
