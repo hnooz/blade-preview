@@ -2,11 +2,17 @@ import * as vscode from 'vscode';
 import { BladePreviewPanel } from './bladePreviewPanel';
 
 export function activate(context: vscode.ExtensionContext) {
-	console.log('[Blade Preview] Extension is now active!');
+	console.log('[Blade Preview] ========================================');
+	console.log('[Blade Preview] Extension is ACTIVATING NOW!');
 	console.log('[Blade Preview] Extension path:', context.extensionUri.fsPath);
+	console.log('[Blade Preview] ========================================');
+	
+	// Show a notification to confirm activation (for debugging)
+	vscode.window.showInformationMessage('Blade Preview Extension Activated!');
 
 	// Register command to open preview
 	const openPreviewCommand = vscode.commands.registerCommand('blade-preview.openPreview', () => {
+		console.log('[Blade Preview] openPreview command called!');
 		const editor = vscode.window.activeTextEditor;
 		if (!editor) {
 			vscode.window.showErrorMessage('No active editor found. Please open a Blade template file.');
