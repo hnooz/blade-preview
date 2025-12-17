@@ -5,6 +5,10 @@ A VS Code extension that provides live preview of Laravel Blade templates as ful
 ## Features
 
 - **Live Preview**: Preview your Blade templates in real-time as you edit
+- **Laravel Helper Support**: Full support for Laravel's asset helpers:
+  - `asset()`, `url()`, `public_path()`, `base_path()`, `resource_path()`
+  - `@vite()` directive for Vite bundling
+  - `mix()` helper for Laravel Mix
 - **Local CSS/JS Support**: Automatically detects and loads local CSS and JavaScript files from your Laravel project
 - **CDN Support**: Automatically loads CSS and JavaScript from CDN links (Bootstrap, Tailwind, Font Awesome, etc.)
 - **Laravel Asset Helpers**: Supports `asset()`, `@vite()` directives for loading local resources
@@ -59,12 +63,45 @@ The extension automatically searches for local CSS and JavaScript files in commo
 - `public/build/` (Vite builds)
 - `resources/css/`, `resources/js/`
 - `node_modules/`
+
+**Supported Laravel Helpers and Patterns:**
+
+```blade
+<!-- Direct paths -->
+<link href="/css/app.css">
+<script src="/js/app.js"></script>
+
+<!-- asset() helper -->
+{{ asset('css/app.css') }}
+{!! asset('js/app.js') !!}
+
+<!-- url() helper -->
+{{ url('css/app.css') }}
+
+<!-- public_path() helper -->
+{{ public_path('css/app.css') }}
+
+<!-- base_path() helper -->
+{{ base_path('public/css/app.css') }}
+
+<!-- resource_path() helper -->
+{{ resource_path('css/app.css') }}
+
+<!-- @vite directive (Laravel 9+) -->
+@vite(['resources/css/app.css', 'resources/js/app.js'])
+
+<!-- mix() helper (Laravel Mix) -->
+{{ mix('css/app.css') }}
+{{ mix('js/app.js') }}
+```
+
 ## Examples
 
 The extension includes example files:
 - `example.blade.php` - Basic Blade template
 - `example-bootstrap.blade.php` - Bootstrap 5 template with CDN resources
 - `example-local-css.blade.php` - Template using local CSS files from `public/css/app.css`
+- `example-laravel-helpers.blade.php` - Demonstrates all supported Laravel helper functions
 
 ### Supported CDN Providers
 

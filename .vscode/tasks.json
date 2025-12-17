@@ -5,6 +5,13 @@
 	"tasks": [
 		{
 			"type": "npm",
+			"script": "compile",
+			"label": "npm: compile",
+			"problemMatcher": "$ts-webpack",
+			"group": "build"
+		},
+		{
+			"type": "npm",
 			"script": "watch",
 			"problemMatcher": "$ts-webpack-watch",
 			"isBackground": true,
@@ -27,14 +34,6 @@
 				"group": "watchers"
 			},
 			"group": "build"
-		},
-		{
-			"label": "tasks: watch-tests",
-			"dependsOn": [
-				"npm: watch",
-				"npm: watch-tests"
-			],
-			"problemMatcher": []
 		}
 	]
 }

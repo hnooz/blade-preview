@@ -103,6 +103,11 @@ export class BladePreviewPanel {
         const bladeContent = this._document.getText();
         const renderedHtml = this._renderBladeTemplate(bladeContent);
         
+        // Extract body content from rendered HTML if it's a complete document
+        // This prevents nested <html><head> which causes visible text issues
+        const bodyContent = this._extractBodyContent(renderedHtml);
+        const headContent = this._extractHeadContent(renderedHtml);
+        
         // Get CSS and script URIs
         const styleUri = this._getStyleUri(webview);
         const externalStyles = this._extractExternalStyles(bladeContent);
@@ -117,16 +122,14 @@ export class BladePreviewPanel {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline' https:; script-src ${webview.cspSource} 'unsafe-inline' https:; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource} https: data:;">
     <title>Blade Preview</title>
+    ${headContent}
     ${externalStyles.map(url => `<link rel="stylesheet" href="${url}">`).join('\n    ')}
     ${localStyles.map(url => `<link rel="stylesheet" href="${url}">`).join('\n    ')}
     <link rel="stylesheet" href="${styleUri}">
 </head>
 <body>
-    <div class="warning-banner">
-        <strong>⚠️ Preview Mode:</strong> This is a simulated rendering of the Blade template. Actual Laravel rendering may differ.
-    </div>
     <div class="preview-container">
-        ${renderedHtml}
+        ${bodyContent}
     </div>
     ${externalScripts.map(url => `<script src="${url}"></script>`).join('\n    ')}
     ${localScripts.map(url => `<script src="${url}"></script>`).join('\n    ')}
@@ -168,10 +171,99 @@ export class BladePreviewPanel {
 </html>`;
     }
 
+    /**
+     * Extracts the content inside <body>...</body> tags from HTML.
+     * If no body tag found, returns the original HTML.
+     */
+    private _extractBodyContent(html: string): string {
+        // Use greedy match to capture everything between body tags
+        const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+        if (bodyMatch && bodyMatch[1]) {
+            return bodyMatch[1].trim();
+        }
+        
+        // If no body tags, but has full HTML structure, try to strip outer tags
+        if (html.includes('<!DOCTYPE') || html.includes('<html')) {
+            // Remove doctype, html, head sections
+            let content = html
+                .replace(/<!DOCTYPE[^>]*>/gi, '')
+                .replace(/<html[^>]*>/gi, '')
+                .replace(/<\/html>/gi, '')
+                .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+                .trim();
+            return content;
+        }
+        
+        return html;
+    }
+
+    /**
+     * Extracts content from <head>...</head> tags.
+     * Returns only safe elements like stylesheets (excluding meta, title, etc. that we provide).
+     */
+    private _extractHeadContent(html: string): string {
+        const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+        if (!headMatch || !headMatch[1]) {
+            return '';
+        }
+        
+        const headContent = headMatch[1];
+        
+        // Extract only style tags and inline styles (not link tags - we handle those separately)
+        const styleMatches = headContent.match(/<style[^>]*>[\s\S]*?<\/style>/gi) || [];
+        
+        return styleMatches.join('\n');
+    }
+
     private _renderBladeTemplate(bladeContent: string): string {
         try {
             // Basic Blade syntax processing
             let html = bladeContent;
+
+            // ============================================================
+            // STEP 1: Remove all Laravel asset helper tags BEFORE {{ }} processing
+            // ============================================================
+            
+            // Remove entire lines containing <link> with Laravel helpers
+            html = html.split('\n').filter(line => {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('<link') && /\{\{\s*(asset|url|public_path|base_path|resource_path|mix)\s*\(/.test(trimmed)) {
+                    return false; // Remove this line
+                }
+                return true;
+            }).join('\n');
+            
+            // Remove entire lines containing <script> with Laravel helpers
+            html = html.split('\n').filter(line => {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('<script') && /\{\{\s*(asset|url|public_path|base_path|resource_path|mix)\s*\(/.test(trimmed)) {
+                    return false; // Remove this line
+                }
+                return true;
+            }).join('\n');
+            
+            // Remove @vite directives (entire line)
+            html = html.split('\n').filter(line => {
+                return !line.trim().startsWith('@vite');
+            }).join('\n');
+            
+            // ============================================================
+            // STEP 2: Handle remaining Laravel helpers in attributes
+            // ============================================================
+            
+            // Replace action="{{ url() }}" or action="{{ route() }}" with action="#"
+            html = html.replace(/action\s*=\s*["']\{\{[^}]+\}\}["']/gi, 'action="#"');
+            
+            // Replace value="{{ old() }}" with value=""
+            html = html.replace(/value\s*=\s*["']\{\{\s*old\s*\([^)]*\)\s*\}\}["']/gi, 'value=""');
+            
+            // Replace any remaining {{ helper() }} for asset-type functions with empty string
+            html = html.replace(/\{\{\s*(asset|url|public_path|base_path|resource_path|mix|old|config|env|route|action)\s*\([^)]*\)\s*\}\}/gi, '');
+            html = html.replace(/\{!!\s*(asset|url|public_path|base_path|resource_path|mix)\s*\([^)]*\)\s*!!\}/gi, '');
+
+            // ============================================================
+            // STEP 3: Process remaining Blade directives
+            // ============================================================
 
             // Handle @extends
             html = html.replace(/@extends\(['"](.+?)['"]\)/g, '<!-- extends: $1 -->');
@@ -345,11 +437,8 @@ export class BladePreviewPanel {
 
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(this._document.uri);
         if (!workspaceFolder) {
-            console.log('[Blade Preview] No workspace folder found');
             return styles;
         }
-
-        console.log('[Blade Preview] Searching for local CSS in:', workspaceFolder.uri.fsPath);
 
         // Extract relative/absolute paths from <link> tags (non-http URLs)
         const linkRegex = /<link[^>]*href=["'](?!https?:\/\/)([^"']+\.css)["'][^>]*>/gi;
@@ -357,35 +446,58 @@ export class BladePreviewPanel {
         
         while ((match = linkRegex.exec(bladeContent)) !== null) {
             const relativePath = match[1];
-            console.log('[Blade Preview] Found local CSS reference:', relativePath);
             const resolvedUri = this._resolveLocalResource(relativePath, workspaceFolder, webview);
-            if (resolvedUri) {
-                console.log('[Blade Preview] Resolved to:', resolvedUri);
+            if (resolvedUri && !styles.includes(resolvedUri)) {
                 styles.push(resolvedUri);
-            } else {
-                console.log('[Blade Preview] Could not resolve:', relativePath);
             }
         }
 
-        // Also check for common Laravel asset patterns
+        // Also check for common Laravel asset patterns and helpers
         const assetPatterns = [
-            /@vite\(['"]([^'"]+\.css)['"]\)/gi,
+            // @vite directive
+            /@vite\(['"]\[?['"]?([^'"]+\.css)['"]?\]?['"]\)/gi,
+            /@vite\(\[['"]([^'"]+\.css)['"]/gi,
+            
+            // asset() helper
             /asset\(['"]([^'"]+\.css)['"]\)/gi,
-            /{{ asset\(['"]([^'"]+\.css)['"]\) }}/gi,
+            /\{\{\s*asset\(['"]([^'"]+\.css)['"]\)\s*\}\}/gi,
+            /\{!!\s*asset\(['"]([^'"]+\.css)['"]\)\s*!!\}/gi,
+            
+            // url() helper
+            /url\(['"]([^'"]+\.css)['"]\)/gi,
+            /\{\{\s*url\(['"]([^'"]+\.css)['"]\)\s*\}\}/gi,
+            
+            // public_path() helper
+            /public_path\(['"]([^'"]+\.css)['"]\)/gi,
+            /\{\{\s*public_path\(['"]([^'"]+\.css)['"]\)\s*\}\}/gi,
+            
+            // base_path() helper
+            /base_path\(['"]([^'"]+\.css)['"]\)/gi,
+            /\{\{\s*base_path\(['"]([^'"]+\.css)['"]\)\s*\}\}/gi,
+            
+            // resource_path() helper
+            /resource_path\(['"]([^'"]+\.css)['"]\)/gi,
+            
+            // mix() helper (Laravel Mix)
+            /mix\(['"]([^'"]+\.css)['"]\)/gi,
+            /\{\{\s*mix\(['"]([^'"]+\.css)['"]\)\s*\}\}/gi,
         ];
 
         assetPatterns.forEach(pattern => {
+            // Reset lastIndex to ensure fresh matching
+            pattern.lastIndex = 0;
             let assetMatch;
             while ((assetMatch = pattern.exec(bladeContent)) !== null) {
                 const assetPath = assetMatch[1];
                 const resolvedUri = this._resolveLocalResource(assetPath, workspaceFolder, webview);
-                if (resolvedUri) {
+                if (resolvedUri && !styles.includes(resolvedUri)) {
                     styles.push(resolvedUri);
                 }
             }
         });
 
-        return styles;
+        // Return unique styles only
+        return [...new Set(styles)];
     }
 
     private _extractLocalScripts(bladeContent: string, webview: vscode.Webview): string[] {
@@ -407,30 +519,57 @@ export class BladePreviewPanel {
         while ((match = scriptRegex.exec(bladeContent)) !== null) {
             const relativePath = match[1];
             const resolvedUri = this._resolveLocalResource(relativePath, workspaceFolder, webview);
-            if (resolvedUri) {
+            if (resolvedUri && !scripts.includes(resolvedUri)) {
                 scripts.push(resolvedUri);
             }
         }
 
-        // Also check for Laravel asset patterns
+        // Also check for Laravel asset patterns and helpers
         const assetPatterns = [
-            /@vite\(['"]([^'"]+\.js)['"]\)/gi,
+            // @vite directive
+            /@vite\(['"]\[?['"]?([^'"]+\.js)['"]?\]?['"]\)/gi,
+            /@vite\(\[['"]([^'"]+\.js)['"]/gi,
+            
+            // asset() helper
             /asset\(['"]([^'"]+\.js)['"]\)/gi,
-            /{{ asset\(['"]([^'"]+\.js)['"]\) }}/gi,
+            /\{\{\s*asset\(['"]([^'"]+\.js)['"]\)\s*\}\}/gi,
+            /\{!!\s*asset\(['"]([^'"]+\.js)['"]\)\s*!!\}/gi,
+            
+            // url() helper
+            /url\(['"]([^'"]+\.js)['"]\)/gi,
+            /\{\{\s*url\(['"]([^'"]+\.js)['"]\)\s*\}\}/gi,
+            
+            // public_path() helper
+            /public_path\(['"]([^'"]+\.js)['"]\)/gi,
+            /\{\{\s*public_path\(['"]([^'"]+\.js)['"]\)\s*\}\}/gi,
+            
+            // base_path() helper
+            /base_path\(['"]([^'"]+\.js)['"]\)/gi,
+            /\{\{\s*base_path\(['"]([^'"]+\.js)['"]\)\s*\}\}/gi,
+            
+            // resource_path() helper
+            /resource_path\(['"]([^'"]+\.js)['"]\)/gi,
+            
+            // mix() helper (Laravel Mix)
+            /mix\(['"]([^'"]+\.js)['"]\)/gi,
+            /\{\{\s*mix\(['"]([^'"]+\.js)['"]\)\s*\}\}/gi,
         ];
 
         assetPatterns.forEach(pattern => {
+            // Reset lastIndex to ensure fresh matching
+            pattern.lastIndex = 0;
             let assetMatch;
             while ((assetMatch = pattern.exec(bladeContent)) !== null) {
                 const assetPath = assetMatch[1];
                 const resolvedUri = this._resolveLocalResource(assetPath, workspaceFolder, webview);
-                if (resolvedUri) {
+                if (resolvedUri && !scripts.includes(resolvedUri)) {
                     scripts.push(resolvedUri);
                 }
             }
         });
 
-        return scripts;
+        // Return unique scripts only
+        return [...new Set(scripts)];
     }
 
     private _resolveLocalResource(
@@ -440,8 +579,6 @@ export class BladePreviewPanel {
     ): string | null {
         // Remove leading slash or ./
         let cleanPath = resourcePath.replace(/^\.?\//, '');
-
-        console.log('[Blade Preview] Resolving resource:', resourcePath, '-> cleaned:', cleanPath);
 
         // Common Laravel public asset paths
         const commonPaths = [
@@ -457,20 +594,15 @@ export class BladePreviewPanel {
         for (const testPath of commonPaths) {
             try {
                 const fullPath = path.join(workspaceFolder.uri.fsPath, testPath);
-                console.log('[Blade Preview] Testing path:', fullPath);
                 if (fs.existsSync(fullPath)) {
                     const fileUri = vscode.Uri.file(fullPath);
-                    const webviewUri = webview.asWebviewUri(fileUri).toString();
-                    console.log('[Blade Preview] ✓ Found file! Webview URI:', webviewUri);
-                    return webviewUri;
+                    return webview.asWebviewUri(fileUri).toString();
                 }
-            } catch (error) {
-                console.log('[Blade Preview] Error checking path:', testPath, error);
+            } catch {
                 continue;
             }
         }
 
-        console.log('[Blade Preview] ✗ File not found in any common path');
         return null;
     }
 
