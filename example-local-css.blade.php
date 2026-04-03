@@ -6,7 +6,7 @@
     <title>{{ $title ?? 'Local CSS Example' }}</title>
     
     <!-- Local CSS file -->
-    <link rel="stylesheet" href="/css/app.css">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
 </head>
 <body>
     <nav class="navbar">
