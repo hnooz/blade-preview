@@ -135,9 +135,6 @@ export function buildPreviewHtml(options: {
     <link rel="stylesheet" href="${previewCssUri}">
 </head>
 <body>
-    <div class="blade-preview-warning-banner">
-        <strong>&#9888; Preview Mode:</strong> Simulated rendering &mdash; not actual Laravel output
-    </div>
     ${bodyContent}
     ${cdnScripts.map(url => `<script nonce="${nonce}" src="${sanitizeUrl(url)}"></script>`).join('\n    ')}
     <script nonce="${nonce}">
