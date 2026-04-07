@@ -2,6 +2,14 @@
 
 All notable changes to Blade Preview will be documented in this file.
 
+## [0.1.2] - 2026-04-07
+
+### Fixed
+- Skip CDN `<link>`/`<script>` tags when their URL fails sanitization, preventing empty `href=""`/`src=""` attributes and spurious CSP errors in the webview.
+
+### Added
+- Unit tests for `BladeRenderer` (directives, expressions, nesting, escaping) and `htmlBuilder` (CDN extraction, document parsing, URL sanitization, CSP/nonce assembly).
+
 ## [0.1.0] - 2026-04-03
 
 ### Added

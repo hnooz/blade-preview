@@ -2,7 +2,7 @@
   "name": "blade-preview",
   "displayName": "Blade Preview",
   "description": "Live preview of Laravel Blade templates as rendered HTML — see your designs instantly without running a server",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "MohamedIdris",
   "license": "MIT",
   "repository": {

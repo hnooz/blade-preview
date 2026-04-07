@@ -130,13 +130,13 @@ export function buildPreviewHtml(options: {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline' https:; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource} https: data:;">
     <title>Blade Preview</title>
-    ${cdnStyles.map(url => `<link rel="stylesheet" href="${sanitizeUrl(url)}">`).join('\n    ')}
+    ${cdnStyles.map(sanitizeUrl).filter(Boolean).map(url => `<link rel="stylesheet" href="${url}">`).join('\n    ')}
     ${inlineStyles}
     <link rel="stylesheet" href="${previewCssUri}">
 </head>
 <body>
     ${bodyContent}
-    ${cdnScripts.map(url => `<script nonce="${nonce}" src="${sanitizeUrl(url)}"></script>`).join('\n    ')}
+    ${cdnScripts.map(sanitizeUrl).filter(Boolean).map(url => `<script nonce="${nonce}" src="${url}"></script>`).join('\n    ')}
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         window.addEventListener('error', (e) => {

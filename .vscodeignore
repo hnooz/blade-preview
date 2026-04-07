@@ -20,3 +20,5 @@ webpack.config.js
 **/*.ts
 **/.vscode-test.*
 .claude/**
+codex-review-*.md
+*.vsix
